@@ -1,63 +1,43 @@
 #!/usr/bin/env python3
-
-from random import randint, choice as rc
-
-from faker import Faker
-
 from app import app
-from models import db, Recipe, User
+from models import db, User, Recipe
 
-fake = Faker()
+def seed_database():
+    with app.app_context():
+        print("🧹 Clearing existing data...")
+        Recipe.query.delete()
+        User.query.delete()
+        db.session.commit()
 
-with app.app_context():
+        print("🌱 Seeding new data...")
+        # Users
+        user1 = User(username='chef_anna', image_url='https://example.com/anna.png', bio='Pastry chef')
+        user1.password = 'secret123'
 
-    print("Deleting all records...")
-    Recipe.query.delete()
-    User.query.delete()
+        user2 = User(username='chef_bob', image_url='https://example.com/bob.png', bio='BBQ expert')
+        user2.password = 'bbqmaster'
 
-    fake = Faker()
+        db.session.add_all([user1, user2])
+        db.session.commit()
+        print(f"✅ Added {len([user1, user2])} users")
 
-    print("Creating users...")
-
-    # make sure users have unique usernames
-    users = []
-    usernames = []
-
-    for i in range(20):
-        
-        username = fake.first_name()
-        while username in usernames:
-            username = fake.first_name()
-        usernames.append(username)
-
-        user = User(
-            username=username,
-            bio=fake.paragraph(nb_sentences=3),
-            image_url=fake.url(),
+        # Recipes
+        recipe1 = Recipe(
+            title='Chocolate Cake',
+            instructions='Mix flour, cocoa powder, eggs, sugar, and butter. Bake at 350°F for 30 minutes. Let it cool and enjoy!',
+            minutes_to_complete=45,
+            user_id=user1.id,
         )
-
-        user.password_hash = user.username + 'password'
-
-        users.append(user)
-
-    db.session.add_all(users)
-
-    print("Creating recipes...")
-    recipes = []
-    for i in range(100):
-        instructions = fake.paragraph(nb_sentences=8)
-        
-        recipe = Recipe(
-            title=fake.sentence(),
-            instructions=instructions,
-            minutes_to_complete=randint(15,90),
+        recipe2 = Recipe(
+            title='Grilled Ribs',
+            instructions='Season the ribs generously with salt and spices. Grill them slowly for 2 hours over medium heat until tender.',
+            minutes_to_complete=120,
+            user_id=user2.id,
         )
+        db.session.add_all([recipe1, recipe2])
+        db.session.commit()
+        print(f"✅ Added {len([recipe1, recipe2])} recipes")
+        print("✅ 🌟 Database successfully seeded!")
 
-        recipe.user = rc(users)
-
-        recipes.append(recipe)
-
-    db.session.add_all(recipes)
-    
-    db.session.commit()
-    print("Complete.")
+if __name__ == '__main__':
+    seed_database()
