@@ -1,7 +1,8 @@
 # server/app.py
 from flask import Flask, request, session, jsonify
 from flask_migrate import Migrate
-from models import db, User, Recipe, bcrypt
+from flask_bcrypt import Bcrypt
+from models import db, User, Recipe
 
 app = Flask(__name__)
 app.secret_key = "your_secret_key"
@@ -9,6 +10,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///app.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SESSION_TYPE'] = "filesystem"
 
+bcrypt = Bcrypt(app)
 db.init_app(app)
 migrate = Migrate(app, db)
 
@@ -22,9 +24,12 @@ def signup():
             image_url=data.get('image_url'),
             bio=data.get('bio')
         )
-        new_user.password = data['password']
+
+        new_user.password_hash = data['password']
+
         db.session.add(new_user)
         db.session.commit()
+
         session['user_id'] = new_user.id
         return jsonify(
             id=new_user.id,
@@ -54,14 +59,18 @@ def check_session():
 def login():
     data = request.get_json()
     user = User.query.filter_by(username=data.get('username')).first()
-    if user and user.authenticate(data.get('password')):
-        session['user_id'] = user.id
-        return jsonify(
-            id=user.id,
-            username=user.username,
-            image_url=user.image_url,
-            bio=user.bio
-        ), 200
+    
+    if user:
+        print(f"Attempting to authenticate user: {user.username} with password: {data.get('password')}")  # Debugging line
+        if user.authenticate(data.get('password')):
+            print(f"User {user.username} authenticated successfully.")  # Debugging line
+            session['user_id'] = user.id
+            return jsonify(
+                id=user.id,
+                username=user.username,
+                image_url=user.image_url,
+                bio=user.bio
+            ), 200
     return jsonify({"error": "Invalid credentials"}), 401
 
 # LOGOUT
@@ -76,11 +85,12 @@ def logout():
 @app.route('/recipes', methods=['GET', 'POST'])
 def recipes():
     user_id = session.get('user_id')
+    print(f"User ID from session: {user_id}")  # Debugging line
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
 
     if request.method == 'GET':
-        recipes = Recipe.query.all()
+        recipes = Recipe.query.filter_by(user_id=user_id).all()
         return jsonify([{
             "title": r.title,
             "instructions": r.instructions,
